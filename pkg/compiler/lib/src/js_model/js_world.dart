@@ -85,6 +85,12 @@ class JClosedWorld implements World {
 
   final Map<ClassEntity, Map<ClassEntity, bool>> _subtypeCoveredByCache = {};
 
+  /// Results of [includesClosureCallInDomain] for `call` selectors, by domain
+  /// and receiver. Computing one can enumerate every subtype of the receiver's
+  /// base class, and the answer never changes for a given closed world.
+  final Map<AbstractValueDomain, Map<AbstractValue, bool>>
+  _includesClosureCallCache = {};
+
   // TODO(johnniwinther): Can this be derived from [ClassSet]s?
   final Set<ClassEntity> implementedClasses;
 
@@ -552,11 +558,12 @@ class JClosedWorld implements World {
     AbstractValue? receiver,
     AbstractValueDomain abstractValueDomain,
   ) {
-    return selector.name == Identifiers.call &&
-        (receiver == null ||
-            abstractValueDomain
-                .areDisjoint(abstractValueDomain.functionType, receiver)
-                .isPotentiallyFalse);
+    if (selector.name != Identifiers.call) return false;
+    if (receiver == null) return true;
+    return (_includesClosureCallCache[abstractValueDomain] ??= {})[receiver] ??=
+        abstractValueDomain
+            .areDisjoint(abstractValueDomain.functionType, receiver)
+            .isPotentiallyFalse;
   }
 
   /// Returns `true` if [selector] on [receiver] can hit a `call` method on a
