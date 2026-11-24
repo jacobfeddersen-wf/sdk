@@ -112,7 +112,34 @@ class MemberHierarchyBuilder {
   final Map<Selector, Setlet<MemberEntity>> _dynamicRoots = {};
   final Map<MemberEntity, Setlet<MemberEntity>> _overrides = {};
 
+  /// The reverse of [_overrides]: maps a member to the members it overrides.
+  final Map<MemberEntity, Setlet<MemberEntity>> _overridden = {};
+
   MemberHierarchyBuilder(this.closedWorld);
+
+  /// Returns `true` if [member] is one of the members represented by
+  /// [target]: the target member itself or, if the call is virtual, any of
+  /// its transitive overrides.
+  ///
+  /// Equivalent to `anyTargetMember(target, (m) => m == member)`, but searches
+  /// upwards from [member] instead of enumerating every override of the
+  /// target, which can number in the thousands for members like `toString`.
+  bool isTargetMember(DynamicCallTarget target, MemberEntity member) {
+    final targetMember = target.member;
+    if (member == targetMember) return true;
+    if (!target.isVirtual) return false;
+    final visited = <MemberEntity>{member};
+    final pending = [member];
+    while (pending.isNotEmpty) {
+      final parents = _overridden[pending.removeLast()];
+      if (parents == null) continue;
+      for (final parent in parents) {
+        if (parent == targetMember) return true;
+        if (visited.add(parent)) pending.add(parent);
+      }
+    }
+    return false;
+  }
 
   /// Applies [f] to each override of [entity].
   ///
@@ -408,6 +435,7 @@ class MemberHierarchyBuilder {
     void addParent(MemberEntity child, MemberEntity parent) {
       if (child == parent) return;
       if (!isMixinUse && (_overrides[parent] ??= Setlet()).add(child)) {
+        (_overridden[child] ??= Setlet()).add(parent);
         join(parent, child);
       }
 
@@ -420,6 +448,7 @@ class MemberHierarchyBuilder {
       if (isMixinUse &&
           child.isAbstract &&
           (_overrides[child] ??= Setlet()).add(parent)) {
+        (_overridden[parent] ??= Setlet()).add(child);
         join(child, parent);
       }
     }
