@@ -418,8 +418,22 @@ class GlobalTypeInferenceResultsImpl implements GlobalTypeInferenceResults {
     return _parameterResults.loaded()[parameter] ?? _trivialParameterResult;
   }
 
+  /// Results of [resultTypeOfSelector] by selector and receiver. A result can
+  /// union the types of thousands of targets, and it never changes once
+  /// inference is done.
+  final Map<Selector, Map<AbstractValue, AbstractValue>>
+  _resultTypeOfSelectorCache = {};
+
   @override
   AbstractValue resultTypeOfSelector(
+    Selector selector,
+    AbstractValue receiver,
+  ) {
+    return (_resultTypeOfSelectorCache[selector] ??= {})[receiver] ??=
+        _computeResultTypeOfSelector(selector, receiver);
+  }
+
+  AbstractValue _computeResultTypeOfSelector(
     Selector selector,
     AbstractValue receiver,
   ) {
